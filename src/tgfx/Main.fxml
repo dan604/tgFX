@@ -81,13 +81,6 @@
                   </textFill>
                 </Label>
                 <Separator id="separatorVertical2" orientation="VERTICAL" />
-                <Label id="srText" text="Velocity" textFill="WHITE" FlowPane.margin="$x3" />
-                <Label id="srText" fx:id="srVelo" alignment="CENTER" maxWidth="-Infinity" prefWidth="70.0" text="?" textFill="$x4" FlowPane.margin="$x2" />
-                <Separator id="separatorVertical3" orientation="VERTICAL">
-                  <FlowPane.margin>
-                    <Insets right="20.0" />
-                  </FlowPane.margin>
-                </Separator>
                 <Label id="srText" text="Coord System" textFill="WHITE" />
                 <Label id="srText" fx:id="srCoord" alignment="CENTER" maxWidth="70.0" prefWidth="70.0" text="?" textFill="#9f9f9f" />
                 <Separator id="separatorVertical4" orientation="VERTICAL" />
@@ -126,6 +119,11 @@
                   <children>
                     <VBox alignment="CENTER" blendMode="SRC_ATOP" maxWidth="300.0" minHeight="-1.0" minWidth="320.0" prefHeight="300.0" prefWidth="320.0" style="" visible="true" HBox.hgrow="NEVER">
                       <children>
+                        <HBox prefHeight="100.0" prefWidth="200.0">
+                          <children>
+                            <ProgressIndicator fx:id="fileSentIndicator" progress="0.0" />
+                          </children>
+                        </HBox>
                         <HBox id="gcodeFile" alignment="TOP_CENTER">
                           <children>
                             <Button fx:id="gcodeZero" onAction="#handleZeroSystem" text="Zero" />
@@ -160,7 +158,7 @@
                                 <Insets fx:id="x727" />
                               </HBox.margin>
                             </Button>
-                            <Button fx:id="btnTest" mnemonicParsing="false" onAction="#handleTestButton" text="Test" visible="false" />
+                            <Button fx:id="btnTest" disable="false" mnemonicParsing="false" onAction="#handleTestButton" text="Test" visible="true" />
                           </children>
                           <padding>
                             <Insets top="10.0" />
@@ -1518,5 +1516,6 @@
   </prefWidth>
   <stylesheets>
     <URL value="@new_main.css.css" />
+    <URL value="@../../../../Downloads/JMetroDarkTheme.css" />
   </stylesheets>
 </fx:root>

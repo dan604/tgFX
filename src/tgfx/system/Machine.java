@@ -501,8 +501,8 @@ public class Machine {
         this.min_segment_time = min_segment_time;
     }
 
-    public Double getVelocity() {
-        return (velocity.get());
+    public SimpleDoubleProperty getVelocity() {
+        return (velocity);
     }
 
     public void setVelocity(double vel) {

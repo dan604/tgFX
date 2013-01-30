@@ -6,7 +6,6 @@ package tgfx;
 
 import tgfx.tinyg.TinygDriver;
 import gnu.io.*;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -24,16 +23,9 @@ public class SerialDriver implements SerialPortEventListener {
     public String portArray[] = null; //Holder 
     public SerialPort serialPort;
     private String port;
-    private String buf = "";
-    private String flow = new String();
-    private static final Object mutex = new Object();
     public InputStream input;
     public OutputStream output;
-    private static boolean throttled = false;
-    private boolean PAUSED = false;
     private boolean CANCELLED = false;
-    //DEBUG
-//    public ByteArrayOutputStream bof = new ByteArrayOutputStream();
     private static byte[] lineBuffer = new byte[1024];
     private static int lineIdx = 0;
     public String debugFileBuffer = "";
@@ -80,7 +72,6 @@ public class SerialDriver implements SerialPortEventListener {
     public synchronized void disconnect() {
 
         if (serialPort != null) {
-            //serialPort.removeEventListener();
             serialPort.close();
             setConnected(false); //Set our disconnected state
         }
@@ -114,13 +105,7 @@ public class SerialDriver implements SerialPortEventListener {
             try {
                 int cnt = input.read(inbuffer, 0, inbuffer.length);
                 for (int i = 0; i < cnt; i++) {
-//                    if (inbuffer[i] == 0x13) {
-//                        System.out.println("Got XOFF");
-//                        setThrottled(true);
-//                    } else if (inbuffer[i] == 0x11) {
-//                        System.out.println("Got XON");
-//                        setThrottled(false);
-//                    } else 
+
                     if (inbuffer[i] == '\n') {
                         String f = new String(lineBuffer, 0, lineIdx);
                         //                       Main.logger.debug("full line |" + f + "|");                        
@@ -142,7 +127,7 @@ public class SerialDriver implements SerialPortEventListener {
     public static String[] listSerialPorts() {
         Enumeration ports = CommPortIdentifier.getPortIdentifiers();
         ArrayList portList = new ArrayList();
-        String portArray[] = null;
+        String portArray[];
         while (ports.hasMoreElements()) {
             CommPortIdentifier port = (CommPortIdentifier) ports.nextElement();
             if (port.getPortType() == CommPortIdentifier.PORT_SERIAL) {
@@ -180,13 +165,10 @@ public class SerialDriver implements SerialPortEventListener {
             // add event listeners
             serialPort.addEventListener(this);
             serialPort.notifyOnDataAvailable(true);
-//            serialPort.setFlowControlMode(SerialPort.FLOWCONTROL_XONXOFF_IN);
-//            serialPort.setInputBufferSize(15000);
-//            serialPort.setOutputBufferSize(500);
+
 
             Main.logger.debug("[+]Opened " + port + " successfully.");
             setConnected(true); //Register that this is connectionState.
-//            TinygDriver.getInstance().setClearToSend(true);
             return true;
 
         } catch (PortInUseException ex) {

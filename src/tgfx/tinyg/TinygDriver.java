@@ -27,7 +27,7 @@ public class TinygDriver extends Observable {
 
     static final Logger logger = Logger.getLogger(TinygDriver.class);
     public Machine m = Machine.getInstance();
-    public QueueReport qr = QueueReport.getInstance();
+    public int queueReportValue = 24;  //24 is max.
     public MnemonicManager mneManager = new MnemonicManager();
     public ResponseManager resManager = new ResponseManager();
     public CommandManager cmdManager = new CommandManager();
@@ -49,9 +49,9 @@ public class TinygDriver extends Observable {
     private SerialDriver ser = SerialDriver.getInstance();
     public static ArrayBlockingQueue<String> jsonQueue = new ArrayBlockingQueue<>(10);
     public static ArrayBlockingQueue<byte[]> queue = new ArrayBlockingQueue<>(30);
-    public static ArrayBlockingQueue<GcodeLine[]> writerQueue = new ArrayBlockingQueue<>(50000);
+//    public static ArrayBlockingQueue<GcodeLine[]> writerQueue = new ArrayBlockingQueue<>(50000);
     public ResponseParser resParse = new ResponseParser(jsonQueue); // Our
-    public SerialWriter serialWriter = new SerialWriter(writerQueue);
+    public SerialWriter serialWriter = new SerialWriter();
     private boolean PAUSED = false;
     public static int MAX_BUFFER = 254;
 
@@ -64,13 +64,19 @@ public class TinygDriver extends Observable {
         return TinygDriverHolder.INSTANCE;
     }
 
-   
-
-    public void queryHardwareSingleAxisSettings(char c){
+    public void queryHardwareSingleAxisSettings(char c) {
         //Our queryHardwareSingleAxisSetting function for chars
         queryHardwareSingleAxisSettings(String.valueOf(c));
     }
-    
+
+    public int getQueueReportValue() {
+        return queueReportValue;
+    }
+
+    public void setQueueReportValue(int queueReportValue) {
+        this.queueReportValue = queueReportValue;
+    }
+
     public void queryHardwareSingleAxisSettings(String _axis) {
         try {
             switch (_axis.toLowerCase()) {
@@ -417,8 +423,8 @@ public class TinygDriver extends Observable {
      * SerialDriver write methods from here.
      */
     public synchronized void write(String msg) throws Exception {
-        
-        TinygDriver.getInstance().serialWriter.addCommandToBuffer(msg);
+
+        TinygDriver.getInstance().serialWriter.write(msg);
     }
 
     public void priorityWrite(Byte b) throws Exception {

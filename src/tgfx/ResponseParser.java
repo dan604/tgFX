@@ -71,7 +71,7 @@ public class ResponseParser extends Observable implements Runnable {
     public ResponseParser(BlockingQueue bq) {
         //Default constructor
         responseQueue = bq;
-        logger.setLevel(org.apache.log4j.Level.ERROR);
+        logger.setLevel(org.apache.log4j.Level.INFO);
 
     }
 
@@ -82,7 +82,7 @@ public class ResponseParser extends Observable implements Runnable {
 
         while (RUN) {
             try {
-                line = (String) responseQueue.take();
+                line = ((String) responseQueue.take()).trim();
 //                line = line.trim();  //remove spaces at the begginig and end of lines.
                 if (line.startsWith("{")) {
                     if (isTEXT_MODE()) {
@@ -103,7 +103,7 @@ public class ResponseParser extends Observable implements Runnable {
                     }
                     parseJSON(line);  //Take a line from the response queue when its ready and parse it.
 //                    System.out.println("GOT LINE: " + line);
-                } else  {
+                } else {
                     //Text Mode Response
                     if (!isTEXT_MODE()) {
                         //We are just entering text mode and need to alert the user. 
@@ -189,6 +189,17 @@ public class ResponseParser extends Observable implements Runnable {
                 }
             }
         }
+    }
+
+    public void applyQueueReport(JSONObject js) {
+        String parentGroup;
+        try {
+            TinygDriver.getInstance().setQueueReportValue(js.getInt("qr"));
+            TinygDriver.getInstance().serialWriter.notifyAck();
+        } catch (Exception ex) {
+            logger.error("Error applying applyQueueReport");
+        }
+
     }
 
     public void applySettingStatusReport(JSONObject js) {
@@ -482,7 +493,7 @@ public class ResponseParser extends Observable implements Runnable {
 
         final JSONObject js = new JSONObject(line);
 
-        if (js.has("r") || (js.has("sr"))) {
+        if (js.has("r") || (js.has("sr")) || (js.has("qr"))) {
             Platform.runLater(new Runnable() {
                 @Override
                 public void run() {
@@ -490,15 +501,28 @@ public class ResponseParser extends Observable implements Runnable {
                         //These are the 2 types of responses we will get back.
                         switch (js.keys().next().toString()) {
                             case ("r"):
+                                TinygDriver.getInstance().serialWriter.notifyAck();
                                 applySetting(js.getJSONObject("r"));
                                 break;
                             case ("sr"):
                                 applySettingStatusReport(js.getJSONObject("sr"));
                                 break;
-
-
-
-
+                            case ("qr"):
+                                applyQueueReport(js.getJSONObject("qr"));
+                            /**
+                             * REMOVE THIS AFTER BUG FIX 361.01
+                             */
+                            default:
+                                Iterator ii = js.keys();
+                                while (ii.hasNext()) {
+                                    String key = ii.next().toString();
+                                    if (key.equals("qr")) {
+                                        applyQueueReport(js);
+                                    }
+                                }
+                            /**
+                             * END REMOVE
+                             */
                         }
 
                     } catch (JSONException ex) {

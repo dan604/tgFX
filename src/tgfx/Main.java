@@ -55,12 +55,14 @@ import org.apache.log4j.BasicConfigurator;
 import java.io.*;
 import java.nio.charset.Charset;
 import java.util.MissingResourceException;
+import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.scene.control.ListView;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.Tooltip;
@@ -84,13 +86,9 @@ import tgfx.tinyg.CommandManager;
 
 public class Main implements Initializable, Observer {
 
-    
     private String buildDate;
     private int buildNumber;
-    
-    
-    
-    
+    private SimpleDoubleProperty totalNumberOfGcodeProgamLines = new SimpleDoubleProperty(0.0);
     private boolean drawPreview = true;
     private boolean taskActive = false;
     static final Logger logger = Logger.getLogger(Main.class);
@@ -102,7 +100,7 @@ public class Main implements Initializable, Observer {
     /*
      * LCD DRO PROFILE CREATION
      */
-    private Lcd xLcd, yLcd, zLcd, aLcd; //DRO Lcds
+    private Lcd xLcd, yLcd, zLcd, aLcd, velLcd; //DRO Lcds
     private StyleModel STYLE_MODEL_X = StyleModelBuilder.create()
             .lcdDesign(LcdDesign.BLACK)
             .lcdDecimals(3)
@@ -126,6 +124,12 @@ public class Main implements Initializable, Observer {
             .lcdDecimals(3)
             .lcdValueFont(Gauge.LcdFont.LCD)
             .lcdUnitStringVisible(true)
+            .build();
+    private StyleModel STYLE_MODEL_VEL = StyleModelBuilder.create()
+            .lcdDesign(LcdDesign.RED)
+            .lcdDecimals(2)
+            .lcdValueFont(Gauge.LcdFont.LCD)
+//            .lcdUnitStringVisible(true)
             .build();
     /**
      * JFXtras stuff
@@ -164,6 +168,8 @@ public class Main implements Initializable, Observer {
     TextArea gcodesList;
     @FXML
     Label xposT, yposT;
+    @FXML
+    ProgressIndicator fileSentIndicator;
     @FXML
     WebView html;
     @FXML
@@ -210,8 +216,8 @@ public class Main implements Initializable, Observer {
 
     public Main() {
         this.gcodePane = new Pane();
-        double xPrevious = gcodePane.getWidth()/2;
-        double yPrevious = gcodePane.getHeight()/2;
+        double xPrevious = gcodePane.getWidth() / 2;
+        double yPrevious = gcodePane.getHeight() / 2;
     }
 
 //    float x = 0;
@@ -247,12 +253,12 @@ public class Main implements Initializable, Observer {
                     FileChooser fc = new FileChooser();
                     fc.setTitle("Open GCode File");
 
-                    String HOME_DIR = System.getenv("HOME"); //Get Home DIR in OSX
+                    String HOME_DIR = System.getenv("HOME");
                     if (HOME_DIR == null) {
-                        HOME_DIR = System.getProperty("user.home");  //Get Home DIR in Windows
+                        HOME_DIR = System.getProperty("user.home");
                     }
 
-                    fc.setInitialDirectory(new File(HOME_DIR));  //This will find osx users home dir
+                    fc.setInitialDirectory(new File(HOME_DIR));
                     File f = fc.showOpenDialog(null);
                     FileInputStream fstream = new FileInputStream(f);
                     DataInputStream in = new DataInputStream((fstream));
@@ -278,6 +284,8 @@ public class Main implements Initializable, Observer {
 //                        System.out.println(strLine);
                         }
                     }
+
+                    logger.info("Loaded " + _linenumber + " of gcode lines to to the program.");
                     System.out.println("[*]File Loading Complete");
 
                 } catch (FileNotFoundException ex) {
@@ -319,6 +327,7 @@ public class Main implements Initializable, Observer {
     void handleTestButton(ActionEvent evt) throws Exception {
         logger.info("Test Button....");
         tg.write(CommandManager.CMD_QUERY_SYSTEM_SETTINGS);
+        fileSentIndicator.setProgress(.20);
 //        tg.write(CommandManager.CMD_QUERY_HARDWARE_BUILD_NUMBER);
 //        TinygDriver.getInstance().priorityWrite((byte)0x18);
 //        TinygDriver.getInstance().write(CommandManager.CMD_APPLY_SYSTEM_MNEMONIC_SYSTEM_SWITCH_TYPE_NC);
@@ -516,9 +525,9 @@ public class Main implements Initializable, Observer {
             @Override
             protected Object call() throws Exception {
                 StringBuilder line = new StringBuilder();
-                int gcodeCharLength = data.size();
+                int gcodeProgramLength = data.size();
                 String tmp;
-                for (int i = 0; i < gcodeCharLength; i++) {
+                for (int i = 0; i < gcodeProgramLength; i++) {
                     GcodeLine _gcl = (GcodeLine) data.get(i);
 
 
@@ -542,6 +551,7 @@ public class Main implements Initializable, Observer {
                             Thread.sleep(50);
                         }
                         tg.write(line.toString());
+                        totalNumberOfGcodeProgamLines.set((double) i / gcodeProgramLength);
                     }
                 }
                 return true;
@@ -585,9 +595,9 @@ public class Main implements Initializable, Observer {
 //            tg.write(CommandManager.CMD_APPLY_STATUS_REPORT_FORMAT);
             tg.write(CommandManager.CMD_DEFAULT_ENABLE_JSON);
             tg.cmdManager.queryStatusReport(); //If TinyG current positions are other than zero
-            
+
             tg.write(CommandManager.CMD_APPLY_JSON_VOBERSITY);
-            tg.write(CommandManager.CMD_APPLY_TEXT_VOBERSITY); 
+            tg.write(CommandManager.CMD_APPLY_TEXT_VOBERSITY);
 
 
 
@@ -893,26 +903,26 @@ public class Main implements Initializable, Observer {
         //Code to make mm's look the same size as inches
         double unitMagnication = 1;
         if (tg.m.getGcodeUnitMode().get().equals(Gcode_unit_modes.INCHES.toString())) {
-            unitMagnication =  5;  //INCHES
-        }else{
+            unitMagnication = 5;  //INCHES
+        } else {
             unitMagnication = 2; //MM
         }
 //        double newX = unitMagnication * (Double.valueOf(tg.m.getAxisByName("X").getWork_position().get()) + 80);// + magnification;
 //        double newY = unitMagnication * (Double.valueOf(tg.m.getAxisByName("Y").getWork_position().get()) + 80);// + magnification;
-        
-        double newX = (Double.valueOf(tg.m.getAxisByName("x").getWork_position().get())) + (gcodePane.getWidth()/2);// + magnification;
-        double newY = (gcodePane.getHeight() - (Double.valueOf(tg.m.getAxisByName("y").getWork_position().get()))) - (gcodePane.getHeight()/2);// + magnification;
+
+        double newX = (Double.valueOf(tg.m.getAxisByName("x").getWork_position().get())) + (gcodePane.getWidth() / 2);// + magnification;
+        double newY = (gcodePane.getHeight() - (Double.valueOf(tg.m.getAxisByName("y").getWork_position().get()))) - (gcodePane.getHeight() / 2);// + magnification;
 //        System.out.println(gcodePane.getHeight() - tg.m.getAxisByName("y").getWork_position().get());
         Line l = new Line(xPrevious, yPrevious, newX, newY);
 //        l.setStroke(Color.BLUE);
-        
+
 
         if (tg.m.getMotionMode().get().equals("traverse")) {
             //G0 Move
 //            l.setStrokeWidth(Draw2d.getStrokeWeight() / 2);
             l.setStrokeDashOffset(5);
             l.setStroke(Draw2d.TRAVERSE);
-        }else{
+        } else {
             l.setStroke(Draw2d.getLineColorFromVelocity(vel));
         }
 
@@ -993,7 +1003,7 @@ public class Main implements Initializable, Observer {
     private void drawCanvasUpdate(String line) {
         final String l = line;
         if (drawPreview) {
-            drawLine(tg.m.getMotionMode().get(), tg.m.getVelocity());
+            drawLine(tg.m.getMotionMode().get(), tg.m.getVelocity().get());
         }
     }
 
@@ -1313,7 +1323,7 @@ public class Main implements Initializable, Observer {
         try {
             msg = rb.getString(propToken);
         } catch (MissingResourceException e) {
-           logger.error("Error Getting Build Info Token ".concat(propToken).concat(" not in Propertyfile!"));
+            logger.error("Error Getting Build Info Token ".concat(propToken).concat(" not in Propertyfile!"));
         }
         return msg;
     }
@@ -1321,16 +1331,14 @@ public class Main implements Initializable, Observer {
     @Override
     public void initialize(URL url, ResourceBundle rb) {
 
-        
+
         buildNumber = Integer.valueOf(getBuildInfo("BUILD"));
         buildDate = getBuildInfo("DATE");
-        
+
         //Set our build / versions in the tgFX settings tab.
         tgfxBuildDate.setText(buildDate);
         tgfxBuildNumber.setText(getBuildInfo("BUILD"));
         tgfxVersion.setText(".9");
-
-//  
 
         w = new Window("Gcode Preview");
         // set the window position to 10,10 (coordinates inside canvas)
@@ -1359,7 +1367,7 @@ public class Main implements Initializable, Observer {
 //                    gcodePane.setLayoutY(-new_val.doubleValue());
 //            }
 //        });
-        
+
 //   
 //        gcodePane.getChildren().add(vGcodePreviewScrollBar);
 //        gcodePane.getChildren().add(hGcodePreviewScrollBar);
@@ -1372,6 +1380,8 @@ public class Main implements Initializable, Observer {
 
 
 
+
+        fileSentIndicator.progressProperty().bind(totalNumberOfGcodeProgamLines);
 //        xtgPA.bindBidirectional("firmwareBuild", srBuild.textProperty());
 //        tgPA.bindBidirectional("firmwareBuild", srBuild.textProperty());
         logger.setLevel(Level.ERROR);
@@ -1380,6 +1390,7 @@ public class Main implements Initializable, Observer {
         yLcd = buildSingleDRO(yLcd, STYLE_MODEL_Y, "Y Axis Position", tg.m.getGcodeUnitMode().get());
         zLcd = buildSingleDRO(zLcd, STYLE_MODEL_Z, "Z Axis Position", tg.m.getGcodeUnitMode().get());
         aLcd = buildSingleDRO(aLcd, STYLE_MODEL_A, "A Axis Position", "°");
+        velLcd = buildSingleDRO(velLcd, STYLE_MODEL_VEL, "Velocity", null);
 
         StackPane droStackPane = new StackPane();
         droStackPane.getChildren().addAll(xLcd, yLcd, zLcd, aLcd);
@@ -1389,6 +1400,7 @@ public class Main implements Initializable, Observer {
         positionsVbox.getChildren().add(yLcd);
         positionsVbox.getChildren().add(zLcd);
         positionsVbox.getChildren().add(aLcd);
+        positionsVbox.getChildren().add(velLcd);
 
 
         xLcd.valueProperty().addListener(new ChangeListener() {
@@ -1432,7 +1444,7 @@ public class Main implements Initializable, Observer {
 
         srMomo.textProperty().bind(tg.m.getMotionMode());
         srVer.textProperty().bind(tg.m.firmwareVersion);
-        srVelo.textProperty().bindBidirectional(tg.m.velocity, sc);
+        
         srBuild.textProperty().bindBidirectional(tg.m.firmwareBuild, sc);
         srState.textProperty().bind(tg.m.m_state);
         srCoord.textProperty().bind(tg.m.getCoordinateSystem());
@@ -1466,6 +1478,7 @@ public class Main implements Initializable, Observer {
         yLcd.valueProperty().bind(TinygDriver.getInstance().m.getAxisByName("y").getWork_position());
         zLcd.valueProperty().bind(TinygDriver.getInstance().m.getAxisByName("z").getWork_position());
         aLcd.valueProperty().bind(TinygDriver.getInstance().m.getAxisByName("a").getWork_position());
+        velLcd.valueProperty().bind(TinygDriver.getInstance().m.getVelocity());
 
         //cursor
 //        cursorPoint.layoutXProperty().bind(tg.m.getAxisByName("x").getWork_position());
@@ -1490,10 +1503,10 @@ public class Main implements Initializable, Observer {
         data.add(n);
         gcodeView.setItems(data);
 
-        Thread serialWriterThread = new Thread(tg.serialWriter);
-        serialWriterThread.setName("SerialWriter");
-        serialWriterThread.setDaemon(true);
-        serialWriterThread.start();
+//        Thread serialWriterThread = new Thread(tg.serialWriter);
+//        serialWriterThread.setName("SerialWriter");
+//        serialWriterThread.setDaemon(true);
+//        serialWriterThread.start();
 
         Thread threadResponseParser = new Thread(tg.resParse);
         threadResponseParser.setDaemon(true);

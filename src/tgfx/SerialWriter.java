@@ -5,14 +5,15 @@
 package tgfx;
 
 import java.util.concurrent.BlockingQueue;
+import tgfx.tinyg.TinygDriver;
 
 /**
  *
  * @author ril3y
  */
-public class SerialWriter implements Runnable {
+public class SerialWriter {
 
-    private BlockingQueue queue;
+//    private BlockingQueue queue;
     private boolean RUN = true;
     private String tmpCmd;
     private int buffer_available = 254;
@@ -21,9 +22,7 @@ public class SerialWriter implements Runnable {
     private static boolean throttled = false;
 
     //   public Condition clearToSend = lock.newCondition();
-    public SerialWriter(BlockingQueue q) {
-        this.queue = q;
-        
+    public SerialWriter() {
     }
 
     public boolean isRUN() {
@@ -38,21 +37,21 @@ public class SerialWriter implements Runnable {
         return buffer_available;
     }
 
-    public synchronized void setBuffer(int val){
+    public synchronized void setBuffer(int val) {
         buffer_available = val;
         Main.logger.info("Got a BUFFER Response.. reset it to: " + val);
     }
+
     public synchronized void addBytesReturnedToBuffer(int lenBytesReturned) {
         buffer_available = buffer_available + lenBytesReturned;
 //        Main.logger.info("Returned " + lenBytesReturned + " to buffer.  Buffer is now at " + buffer_available + "\n");
     }
 
-    public void addCommandToBuffer(String cmd) {
-        this.queue.add(cmd);
-    }
-
+//    public void addCommandToBuffer(String cmd) {
+//        this.queue.add(cmd);
+//    }
     public boolean setThrottled(boolean t) {
-        
+
         synchronized (mutex) {
             if (t == throttled) {
                 Main.logger.info("Throttled already set");
@@ -67,7 +66,7 @@ public class SerialWriter implements Runnable {
         return true;
     }
 
-    public void notifyAck() {
+    public synchronized void notifyAck() {
         //This is called by the response parser when an ack packet is recvd.  This
         //Will wake up the mutex that is sleeping in the write method of the serialWriter
         //(this) class.
@@ -78,48 +77,29 @@ public class SerialWriter implements Runnable {
     }
 
     public void write(String str) {
+       
         try {
             synchronized (mutex) {
-                if (str.length() > getBufferValue()) {
+                if (TinygDriver.getInstance().getQueueReportValue() < 5  || throttled ) {  //race condition perahps?  this needs to be checked
                     setThrottled(true);
                 } else {
-                   buffer_available = getBufferValue() - str.length();
+                    ser.write(str);
+                    setThrottled(true);  //We set this until we get a response object back.
+                    Main.logger.debug("Wrote Line --> " + str);
+                    mutex.wait();
                 }
-
+                //Our QR is too low.. we need to wait on TinyG to process some of the Planning Queue (qr)
                 while (throttled) {
-                    if (str.length() > getBufferValue()) {
-                        Main.logger.info("Throttling: Line Length: " + str.length() + " is smaller than buffer length: " + buffer_available);
-                        setThrottled(true);
-                    } else {
-                        setThrottled(false);
-                        buffer_available = getBufferValue() - str.length();
-                        break;
-                    }
-                    Main.logger.info("We are Throttled in the write method for SerialWriter");
+                    Main.logger.info("We are Throttled in the write method for SerialWriter.  QR.size() = " + TinygDriver.getInstance().getQueueReportValue());
                     //We wait here until the an ack comes in to the response parser
-                    // frees up some buffer space.  Then we unlock the mutex and write the next line.
+                    // frees up some QR space.  Then we unlock the mutex and write the next line.
                     mutex.wait();
                     Main.logger.info("We are free from Throttled!");
                 }
             }
-            ser.write(str);
-            Main.logger.debug("Wrote Line --> " + str );
         } catch (Exception ex) {
             Main.logger.error("Error in SerialDriver Write");
         }
     }
-
-    @Override
-    public void run() {
-        System.out.println("[+]Serial Writer Thread Running...");
-        while (RUN) {
-            try {
-                tmpCmd = (String) queue.take();  //Grab the line
-                this.write(tmpCmd);
-            } catch (Exception ex) {
-                System.out.println("[!]Exception in SerialWriter Thread");
-            }
-        }
-        System.out.println("[+]SerialWriter thread exiting...");
-    }
 }
+
